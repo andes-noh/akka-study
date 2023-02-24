@@ -1,8 +1,11 @@
+import akka.NotUsed
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import com.example.CborSerializable
+
+import scala.io.StdIn
 
 object PersistenceCounter {
   final case class State(count: Int) extends CborSerializable
@@ -45,5 +48,30 @@ object PlayCounter {
   val loggedBehavior: Behavior[Any] = Behaviors.receiveMessage {
     case msg => println(s"$msg")
       Behaviors.same
+  }
+
+  val userBehavior: Behavior[NotUsed] = Behaviors.setup { context =>
+    val logger = context.spawn(loggedBehavior, "logger")
+    val counter_1 = context.spawn(PersistenceCounter.counter(), "counter")
+
+    counter_1 ! PersistenceCounter.GetValue(logger)
+
+    counter_1 ! PersistenceCounter.Increment
+    counter_1 ! PersistenceCounter.IncrementBy(5)
+
+    //    counter_1 ! PersistenceCounter.GetValue(logger)
+//    counter_1 ! PersistenceCounter.IncrementBy(5)
+//    counter_1 ! PersistenceCounter.GetValue(logger)
+//    counter_1 ! PersistenceCounter.Clear
+//    counter_1 ! PersistenceCounter.Clear
+    counter_1 ! PersistenceCounter.GetValue(logger)
+
+    Behaviors.empty
+  }
+
+  def main(args: Array[String]): Unit = {
+    val system = ActorSystem(userBehavior, "CounterSystem")
+    StdIn.readLine()
+    system.terminate()
   }
 }
